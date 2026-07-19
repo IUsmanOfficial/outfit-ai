@@ -1,0 +1,42 @@
+name: Sync to Hugging Face hub
+on:
+  # Only deploy after CI passes on main
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+  # Manual trigger (bypasses CI gate)
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    # Only run if CI succeeded (or manual trigger)
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false  # HF already has LFS objects; skip GitHub LFS (over budget)
+
+      - name: Validate secrets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "HF_TOKEN secret is missing."
+            exit 1
+          fi
+
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GIT_LFS_SKIP_SMUDGE: "1"
+        run: |
+          git remote add hf "https://shabihhaider:$HF_TOKEN@huggingface.co/spaces/shabihhaider/outfitai"
+          # GitHub main is the single source of truth for this Space.
+          # LFS objects already exist on HF from prior pushes — no re-upload needed.
+          git push --force hf HEAD:main

@@ -1,0 +1,244 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
+import { FiEdit2, FiTrash2, FiStar, FiUser, FiCheckCircle, FiArchive } from 'react-icons/fi'
+import { patchItem, archiveItem } from '../../api/wardrobe.js'
+import { resolveUrl } from '../../utils/resolveUrl.js'
+import { wardrobeItemAlt } from '../../utils/wardrobeItemAlt.js'
+import ConfirmDialog from '../ui/ConfirmDialog.jsx'
+import RetryImage from '../ui/RetryImage.jsx'
+import TryOnModal from '../tryon/TryOnModal.jsx'
+
+const CAT_EMOJI = {
+  top: '👕', bottom: '👖', outwear: '🧥', shoes: '👟', dress: '👗', jumpsuit: '🧘'
+}
+
+const CATEGORIES = ['top', 'bottom', 'outwear', 'shoes', 'dress', 'jumpsuit']
+const FORMALITIES = ['casual', 'formal', 'both']
+
+export default function WardrobeCard({ item, onDelete, _onArchive, selectMode = false, selected = false, onToggleSelect }) {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [tryOnOpen, setTryOnOpen] = useState(false)
+  const [category, setCategory] = useState(item.category)
+  const [formality, setFormality] = useState(item.formality)
+
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: (data) => patchItem(item.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wardrobe'] })
+      setIsEditing(false)
+    }
+  })
+
+  const archiveMutation = useMutation({
+    mutationFn: (archived) => archiveItem(item.id, archived),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['wardrobe'] }),
+  })
+
+  const imageUrl = resolveUrl(item.image_url)
+
+  function handleSave() {
+    mutation.mutate({ category, formality })
+  }
+
+  return (
+    <>
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className={`card overflow-hidden group cursor-pointer ${selected ? 'ring-2 ring-accent-500 ring-offset-2' : ''}`}
+        onClick={selectMode ? () => onToggleSelect?.(item.id) : undefined}
+      >
+        {/* Image */}
+        <div className="relative aspect-square bg-brand-100/60 dark:bg-brand-800/40 overflow-hidden">
+          <RetryImage
+            src={imageUrl}
+            alt={wardrobeItemAlt(item)}
+            loading="lazy"
+            decoding="async"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            fallback={
+              <div className="w-full h-full flex items-center justify-center text-5xl opacity-60">
+                {CAT_EMOJI[item.category] || '👔'}
+              </div>
+            }
+          />
+
+          {/* Overlay gradient */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+          {/* Select mode overlay */}
+          {selectMode && (
+            <div className={`absolute inset-0 flex items-center justify-center transition-colors duration-200 ${selected ? 'bg-accent-500/20' : 'bg-transparent hover:bg-brand-900/10'}`}>
+              <FiCheckCircle
+                size={32}
+                className={`transition-all duration-200 ${selected ? 'text-accent-700 opacity-100' : 'text-white opacity-40'}`}
+              />
+            </div>
+          )}
+
+          {/* Action buttons — always visible on touch, hover-only on desktop */}
+          <div className={`absolute top-2 right-2 flex gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 sm:translate-y-1 sm:group-hover:translate-y-0 ${selectMode ? 'hidden' : ''}`}>
+            {item.is_archived ? (
+              <button
+                onClick={() => archiveMutation.mutate(false)}
+                disabled={archiveMutation.isPending}
+                className="bg-white/90 dark:bg-brand-800/90 backdrop-blur-sm hover:bg-emerald-50 dark:hover:bg-emerald-900/40 text-emerald-600 rounded-lg p-2 shadow-sm transition-colors"
+                title="Unarchive item"
+              >
+                <FiArchive size={13} />
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="bg-white/90 dark:bg-brand-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-brand-700 text-brand-600 dark:text-brand-300 rounded-lg p-2 shadow-sm transition-colors"
+                  title="Edit item"
+                >
+                  <FiEdit2 size={13} />
+                </button>
+                <button
+                  onClick={() => archiveMutation.mutate(true)}
+                  disabled={archiveMutation.isPending}
+                  className="bg-white/90 dark:bg-brand-800/90 backdrop-blur-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 text-amber-600 rounded-lg p-2 shadow-sm transition-colors"
+                  title="Archive item (excluded from recommendations)"
+                >
+                  <FiArchive size={13} />
+                </button>
+                <button
+                  onClick={() => setConfirmOpen(true)}
+                  className="bg-white/90 dark:bg-brand-800/90 backdrop-blur-sm hover:bg-red-50 dark:hover:bg-red-900/40 text-red-500 rounded-lg p-2 shadow-sm transition-colors"
+                  title="Delete item"
+                >
+                  <FiTrash2 size={13} />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Edit Panel */}
+        {isEditing && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="p-3 bg-brand-50/80 dark:bg-brand-800/40 border-b border-brand-100/60 dark:border-brand-700/40"
+          >
+            <div className="mb-3">
+              <p className="label-xs mb-1.5">Category</p>
+              <div className="flex flex-wrap gap-1">
+                {CATEGORIES.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setCategory(c)}
+                    className={`px-2 py-1 rounded-full text-[10px] font-medium transition-all ${
+                      category === c
+                        ? 'bg-brand-900 text-white dark:bg-brand-100 dark:text-brand-900 shadow-sm'
+                        : 'bg-white dark:bg-brand-800 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-700 hover:border-brand-400'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mb-3">
+              <p className="label-xs mb-1.5">Formality</p>
+              <div className="flex gap-1">
+                {FORMALITIES.map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setFormality(f)}
+                    className={`flex-1 px-2 py-1 rounded-full text-[10px] font-medium transition-all ${
+                      formality === f
+                        ? 'bg-brand-900 text-white dark:bg-brand-100 dark:text-brand-900 shadow-sm'
+                        : 'bg-white dark:bg-brand-800 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-700 hover:border-brand-400'
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleSave} disabled={mutation.isPending} className="flex-1 btn-primary text-[11px] py-1.5">
+                {mutation.isPending ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={() => { setIsEditing(false); setCategory(item.category); setFormality(item.formality); }}
+                className="flex-1 btn-secondary text-[11px] py-1.5"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Info */}
+        <div className="p-3">
+          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+            <span className={`badge-${item.category}`}>{item.category}</span>
+            <span className={`badge-${item.formality}`}>{item.formality}</span>
+            {!isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                title="Correct the category or formality classification for this item"
+                className="text-[10px] text-brand-500 dark:text-brand-400 hover:text-accent-700 dark:hover:text-accent-700 underline decoration-dotted transition-colors ml-auto"
+              >
+                Edit ✎
+              </button>
+            )}
+          </div>
+
+          {item.model_confidence != null && (
+            <div className="text-xs text-brand-500 dark:text-brand-400 mb-2">
+              AI confidence: <span className="data-value text-xs">{Math.round(item.model_confidence * 100)}%</span>
+            </div>
+          )}
+
+          {!selectMode && (
+            <>
+              <button
+                onClick={() => navigate('/recommendations', { state: { anchorItemId: item.id } })}
+                className="w-full text-sm font-semibold py-2.5 rounded-lg btn-accent flex items-center justify-center gap-1.5 mb-2"
+              >
+                <FiStar size={13} /> Build outfit
+              </button>
+              {item.category !== 'shoes' && (
+                <button
+                  onClick={() => setTryOnOpen(true)}
+                  className="w-full text-xs text-brand-500 dark:text-brand-400 font-medium py-2 border border-brand-200/60 dark:border-brand-700/40 rounded-lg hover:bg-brand-50/60 dark:hover:bg-brand-800/40 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <FiUser size={12} /> Virtual Try-On
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </motion.div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete item"
+        message="Are you sure you want to remove this item from your wardrobe? This cannot be undone."
+        danger
+        onConfirm={() => { setConfirmOpen(false); onDelete(item.id) }}
+        onCancel={() => setConfirmOpen(false)}
+      />
+
+      <TryOnModal
+        open={tryOnOpen}
+        onClose={() => setTryOnOpen(false)}
+        item={item}
+      />
+    </>
+  )
+}

@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Backend: lint + migration + tests ───────────────────────────────────────
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false  # model files not needed for tests; avoids LFS bandwidth cost
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov flake8 bandit
+
+      - name: Lint (flake8)
+        run: |
+          flake8 app/ engine/ \
+            --max-line-length=110 \
+            --extend-ignore=E203,W503,E501,E221,E251,E272 \
+            --exclude=app/migrations/,__pycache__ \
+            --count --statistics
+
+      - name: Security scan (bandit)
+        run: |
+          bandit -r app/ engine/ -l -i \
+            --exclude app/migrations,app/tests \
+            -q
+
+      - name: Migration check
+        env:
+          FLASK_APP: run.py
+          FLASK_CONFIG: development
+          DATABASE_URL: "sqlite:////tmp/outfitai_migration.db"
+        run: |
+          python -m flask db upgrade
+
+      - name: Full test suite
+        env:
+          FLASK_CONFIG: testing
+        run: |
+          pytest tests/ -v --tb=short \
+            --cov=app --cov=engine \
+            --cov-report=term-missing \
+            --ignore=tests/test_vto_engines.py
+
+      - name: VTO engine tests
+        env:
+          FLASK_CONFIG: testing
+        run: |
+          pytest tests/test_vto_engines.py -v --tb=short
+
+  # ── Frontend: lint + build ──────────────────────────────────────────────────
+  frontend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

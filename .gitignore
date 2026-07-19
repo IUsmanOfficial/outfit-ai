@@ -1,0 +1,127 @@
+# AI Tools & Antigravity
+.claude/
+.gemini/
+.antigravity/
+
+# Documentation (Private)
+*.md
+!README.md
+*.pdf
+docs/
+
+# Specifically ignore data-related text files but KEEP build config
+Datasets.txt
+datasets/**/*.txt
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+dist/
+.env.local
+
+# Image Files — Exclude from tracking EXCEPT for frontend assets
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.bmp
+*.tiff
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.webp
+
+# Allow specific useful UI images if they exist in frontend
+!frontend/public/**/*.png
+!frontend/public/**/*.jpg
+!frontend/public/**/*.svg
+!frontend/public/**/*.ico
+!frontend/src/assets/**/*.png
+!frontend/src/assets/**/*.jpg
+!frontend/src/assets/**/*.svg
+
+# Environment / secrets — NEVER commit these
+.env
+.env.*
+.flaskenv
+
+# High-sensitivity local files
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+id_rsa
+id_rsa.pub
+secrets*.json
+credentials*.json
+
+# Local databases and runtime state
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model files & Data — Too large for Git
+models/
+datasets/
+*.h5
+*.keras
+*.npz
+*.pt
+*.bin
+*.ptl
+*.onnx
+
+# Flask runtime — uploads are local only, never commit
+instance/
+uploads/
+
+# Logs
+*.log
+
+# Dev-only throwaway scripts (not part of the app)
+integration_test_helper.py
+test_fashn_call.py
+view_fashn_api.py
+
+# Deployment
+hf-deploy/
+
+# Dev utilities (not part of the app)
+migration-space/
+scripts/
